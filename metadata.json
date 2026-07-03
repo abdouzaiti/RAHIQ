@@ -1,0 +1,6 @@
+{
+  "name": "BeeGuard AI",
+  "description": "Premium IoT Beekeeper Assistant for professional and hobbyist hive monitoring, featuring real-time telemetry, GPS mapping, inspection logs, and AI-powered swarm & disease prediction.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
