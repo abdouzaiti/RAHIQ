@@ -382,7 +382,7 @@ export default function App() {
             <div className="w-28 h-28 shrink-0 flex items-center justify-center relative">
               <img 
                 src="/logo.png" 
-                alt="BeeGuard Logo" 
+                alt="RAHIQ Logo" 
                 className="w-full h-full object-contain z-10"
                 referrerPolicy="no-referrer"
                 onError={(e) => {

@@ -1,6 +1,6 @@
 {
-  "name": "BeeGuard AI",
-  "description": "Premium IoT Beekeeper Assistant for professional and hobbyist hive monitoring, featuring real-time telemetry, GPS mapping, inspection logs, and AI-powered swarm & disease prediction.",
+  "name": "RAHIQ",
+  "description": "RAHIQ - Assistant intelligent de surveillance des ruches et de suivi apicole. Suivi en temps réel de la santé des ruches, télémétrie, planification des visites et aide au diagnostic.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
