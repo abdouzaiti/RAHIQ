@@ -549,6 +549,106 @@ app.post("/api/hives/:id/alerts/:alertId/resolve", (req, res) => {
   res.json(appState.hives[hiveIndex]);
 });
 
+// Cache for AI Dashboard Summary to prevent 429 Rate Limit (Quota Exceeded) errors
+let cachedSummary: { summary: string; timestamp: number; isDemo: boolean } | null = null;
+const CACHE_DURATION_MS = 3 * 60 * 1000; // Cache for 3 minutes
+
+// API: AI Dashboard Executive Summary ("Wow" widget)
+app.get("/api/ai/dashboard-summary", async (req, res) => {
+  // Check cache first
+  if (cachedSummary && (Date.now() - cachedSummary.timestamp < CACHE_DURATION_MS)) {
+    return res.json({
+      summary: cachedSummary.summary,
+      isDemo: cachedSummary.isDemo
+    });
+  }
+
+  // Find current states of specific hives to enrich fallback & prompt
+  const alphaHive = appState.hives.find(h => h.id === "hive-alpha");
+  const betaHive = appState.hives.find(h => h.id === "hive-beta");
+  const gammaHive = appState.hives.find(h => h.id === "hive-gamma");
+
+  const fallbackSummary = `Bonjour John.
+
+Aujourd'hui, **20** de vos **24** ruches connectées fonctionnent normalement.
+
+• 🐝 **Ruche A03** présente des signes d'agitation acoustique (**${gammaHive?.telemetry.soundLevel || 78} dB**) et une température basse (**${gammaHive?.telemetry.temperature || 30.5} °C**). Suspicion de perte de reine ou d'essaimage imminent.
+• 🔋 **Ruche A02** a un capteur en batterie critique (**${betaHive?.telemetry.battery || 18} %**). Pensez à dépoussiérer le petit panneau solaire.
+• ☀️ **Météo & Visites** : Conditions idéales pour l'inspection aujourd'hui de **9:00 à 12:00** (22°C, vent calme).
+• 🍯 **Production estimée** cette semaine : **+14.8 kg** de miel grâce au fort butinage sur la Vallée Verte.`;
+
+  if (!ai) {
+    return res.json({
+      summary: fallbackSummary,
+      isDemo: true
+    });
+  }
+
+  try {
+    const prompt = `
+Vous êtes "RAHIQ AI", un assistant d'analyse d'apiculture connectée et de précision de niveau mondial.
+Générez un résumé exécutif quotidien court, chaleureux et percutant pour l'apiculteur John (ou Jean).
+Structurez le résumé sous forme de puces courtes, visuelles, extrêmement bien formatées en Markdown avec des emojis appropriés.
+Le ton doit être ultra-premium, professionnel et axé sur des actions concrètes basées sur les données ci-dessous.
+
+RÉPONDEZ EXCLUSIVEMENT EN FRANÇAIS.
+
+Voici les statistiques de télémétrie actuelles :
+- Ruches connectées totales suivies : 24 (dont 20 fonctionnent parfaitement aujourd'hui, 2 ont des alertes critiques)
+- Statut de la Ruche A01 (Alpha) : Température=${alphaHive?.telemetry.temperature}°C (cible ~34.5°C), Poids=${alphaHive?.telemetry.weight}kg, Activité=${alphaHive?.telemetry.beeActivity}/100.
+- Statut de la Ruche A02 (Bêta) : Température=${betaHive?.telemetry.temperature}°C, Batterie=${betaHive?.telemetry.battery}%, Poids=${betaHive?.telemetry.weight}kg, Alertes=Batterie Faible.
+- Statut de la Ruche A03 (Gamma) : Température=${gammaHive?.telemetry.temperature}°C, Niveau Sonore=${gammaHive?.telemetry.soundLevel}dB (normal ~40-50dB, >70dB indique orphelinage ou essaimage), Batterie=${gammaHive?.telemetry.battery}%, Alertes=Problème de Reine.
+- Météo du jour : 22°C, Ensoleillé, vents légers de 12 km/h.
+
+Modèle de structure attendu (à adapter de manière fluide) :
+Bonjour John.
+Aujourd'hui, 20 de vos 24 ruches fonctionnent normalement.
+• [Icône ou Emoji] Ruche A03... (analyse sonore ou thermique)
+• [Icône ou Emoji] Ruche A02... (batterie ou panneau solaire)
+• [Icône ou Emoji] Météo favorable ou conseils d'inspection...
+• [Icône ou Emoji] Estimation de production de miel pour la semaine : +14.8 kg.
+`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        temperature: 0.3,
+      }
+    });
+
+    const text = response.text || fallbackSummary;
+    
+    // Save to cache
+    cachedSummary = {
+      summary: text,
+      timestamp: Date.now(),
+      isDemo: false
+    };
+
+    res.json({
+      summary: text,
+      isDemo: false
+    });
+
+  } catch (error: any) {
+    console.error("Failed to generate AI Dashboard summary:", error);
+    
+    // If we have any cached summary, use it as fallback even if expired, instead of raw static fallback
+    if (cachedSummary) {
+      return res.json({
+        summary: cachedSummary.summary,
+        isDemo: cachedSummary.isDemo
+      });
+    }
+
+    res.json({
+      summary: fallbackSummary,
+      isDemo: true
+    });
+  }
+});
+
 // API: AI Assistant Chat & Hive Analysis
 app.post("/api/ai/analyze", async (req, res) => {
   const { hiveId, userMessage } = req.body;

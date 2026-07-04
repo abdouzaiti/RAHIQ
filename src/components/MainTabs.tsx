@@ -85,6 +85,79 @@ export const DashboardView: React.FC<DashboardProps> = ({
   onNavigateTab,
   onOpenAddHive,
 }) => {
+  // AI summary states
+  const [summary, setSummary] = React.useState<string>("");
+  const [loadingSummary, setLoadingSummary] = React.useState<boolean>(true);
+  const [isDemo, setIsDemo] = React.useState<boolean>(true);
+
+  const fetchSummary = async () => {
+    setLoadingSummary(true);
+    try {
+      const res = await fetch("/api/ai/dashboard-summary");
+      if (res.ok) {
+        const data = await res.json();
+        setSummary(data.summary);
+        setIsDemo(data.isDemo);
+      }
+    } catch (err) {
+      console.error("Failed to fetch AI dashboard summary:", err);
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchSummary();
+  }, []);
+
+  // Premium parser to convert lines into modern bento-style sub-cards
+  const renderFormattedSummary = (text: string) => {
+    if (!text) return null;
+    
+    const lines = text.split("\n").filter(line => line.trim() !== "");
+    const bullets = lines.filter(line => line.trim().startsWith("•") || line.trim().startsWith("*") || line.trim().startsWith("-"));
+    const nonBullets = lines.filter(line => !line.trim().startsWith("•") && !line.trim().startsWith("*") && !line.trim().startsWith("-"));
+
+    return (
+      <div className="space-y-4">
+        {nonBullets.map((para, idx) => (
+          <p key={idx} className="text-gray-700 text-sm font-semibold font-sans leading-relaxed flex items-center gap-2">
+            <span className="w-1.5 h-3 bg-amber-500 rounded-full animate-pulse" />
+            {para.replace(/\*\*/g, "")}
+          </p>
+        ))}
+        {bullets.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1">
+            {bullets.map((bullet, idx) => {
+              const cleanText = bullet.replace(/^[•\*\-\s]+/, "").trim();
+              
+              let emoji = "✨";
+              let displayLabel = cleanText;
+              const emojiMatch = cleanText.match(/^([\uD800-\uDBFF][\uDC00-\uDFFF]|\p{Emoji})/u);
+              if (emojiMatch) {
+                emoji = emojiMatch[1];
+                displayLabel = cleanText.substring(emoji.length).trim();
+              }
+
+              // Bold text parsing
+              const parts = displayLabel.split("**");
+              const renderedParts = parts.map((part, pIdx) => 
+                pIdx % 2 === 1 ? <strong key={pIdx} className="font-bold text-gray-900">{part}</strong> : part
+              );
+
+              return (
+                <div key={idx} className="flex items-start gap-3.5 p-4 bg-white/60 border border-amber-100/30 rounded-2xl shadow-xs hover:border-amber-300 hover:bg-white/80 transition duration-300">
+                  <span className="text-xl shrink-0 p-2 bg-amber-50 rounded-xl flex items-center justify-center w-10 h-10">{emoji}</span>
+                  <span className="text-xs text-gray-600 leading-relaxed font-sans">{renderedParts}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Line chart temperature data replicated perfectly from image
   const temperatureData = [
     { name: "00:00", A01: 30, A02: 32, A03: 33, A04: 26, A05: 24 },
@@ -106,6 +179,89 @@ export const DashboardView: React.FC<DashboardProps> = ({
   return (
     <div className="space-y-6" id="dashboard-tab-panel">
       
+      {/* 🐝 Premium AI Summary Widget ("Wow" feature) */}
+      <div className="relative bg-gradient-to-r from-amber-50/60 via-orange-50/30 to-white rounded-[24px] p-6 border border-amber-100/80 shadow-xs overflow-hidden">
+        {/* Abstract design elements to show luxury */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-200/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-8 -left-8 w-24 h-24 bg-orange-200/10 rounded-full blur-2xl pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-amber-100/50 pb-4 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-xs border border-amber-200/60 shadow-sm flex items-center justify-center p-1.5 select-none shrink-0 animate-bounce relative overflow-hidden">
+              <img 
+                src="/logo.png" 
+                alt="RAHIQ Logo" 
+                className="w-full h-full object-contain z-10"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const parent = e.currentTarget.parentElement;
+                  if (parent && !parent.querySelector('.fallback-emoji')) {
+                    const span = document.createElement('span');
+                    span.className = 'text-xl fallback-emoji select-none';
+                    span.innerText = '🐝';
+                    parent.appendChild(span);
+                  }
+                }}
+              />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-extrabold text-amber-950 tracking-tight font-display">
+                  RAHIQ AI Executive Summary
+                </h2>
+                {isDemo ? (
+                  <span className="text-[9px] font-extrabold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Démo dynamique
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-extrabold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Gemini Live
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-amber-800/60 font-semibold tracking-tight leading-none mt-1">
+                Analyses prédictives en direct de l'ensemble de votre réseau apicole
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            {isDemo && (
+              <button 
+                onClick={() => onNavigateTab("settings")}
+                className="text-[10px] font-bold text-amber-700 hover:text-amber-900 border border-amber-200 hover:bg-amber-50/50 px-3 py-1.5 rounded-lg transition"
+              >
+                Activer Gemini Pro
+              </button>
+            )}
+            <button
+              onClick={fetchSummary}
+              disabled={loadingSummary}
+              className="p-1.5 rounded-lg border border-amber-200 text-amber-800 hover:bg-amber-50/50 disabled:opacity-50 transition cursor-pointer flex items-center justify-center shrink-0"
+              title="Actualiser l'analyse"
+            >
+              <RefreshCw className={`w-4 h-4 ${loadingSummary ? "animate-spin text-amber-500" : ""}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Content body */}
+        <div className="relative z-10 min-h-[80px]">
+          {loadingSummary ? (
+            <div className="space-y-4 py-3 animate-pulse">
+              <div className="h-4 bg-amber-100/60 rounded-md w-3/4" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="h-16 bg-amber-100/30 rounded-2xl" />
+                <div className="h-16 bg-amber-100/30 rounded-2xl" />
+              </div>
+            </div>
+          ) : (
+            renderFormattedSummary(summary)
+          )}
+        </div>
+      </div>
+
       {/* 5 Stats Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         
