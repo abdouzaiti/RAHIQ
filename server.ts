@@ -632,7 +632,14 @@ Aujourd'hui, 20 de vos 24 ruches fonctionnent normalement.
     });
 
   } catch (error: any) {
-    console.error("Failed to generate AI Dashboard summary:", error);
+    const errorMsg = String(error.message || error);
+    const isQuotaExceeded = errorMsg.includes("quota") || errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED") || errorMsg.includes("Quota exceeded");
+    
+    if (isQuotaExceeded) {
+      console.warn("Gemini API key quota limits reached. Serving high-fidelity live telemetry summary gracefully.");
+    } else {
+      console.error("Failed to generate AI Dashboard summary:", error);
+    }
     
     // If we have any cached summary, use it as fallback even if expired, instead of raw static fallback
     if (cachedSummary) {
@@ -714,6 +721,63 @@ Beekeeper User's Query: "${userMessage || "Donnez-moi un rapport de santé compl
     res.json({ reply: text });
 
   } catch (error: any) {
+    const errorMsg = String(error.message || error);
+    const isQuotaExceeded = errorMsg.includes("quota") || errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED") || errorMsg.includes("Quota exceeded");
+    
+    if (isQuotaExceeded) {
+      console.warn("Gemini API key quota limits reached for Chat. Serving precise offline expert fallback.");
+      const hive = appState.hives.find((h) => h.id === hiveId);
+      let fallbackText = "";
+      if (hive) {
+        fallbackText = `### 💡 Analyse Intelligente Locale (Régulation des requêtes)
+
+*Note : La limite d'appels API Gemini de démonstration a été atteinte, mais l'analyseur local de RAHIQ prend le relais avec succès !*
+
+Voici l'analyse immédiate basée sur la télémétrie en temps réel de votre ruche **${hive.name}** :
+
+1. **Température (${hive.telemetry.temperature}°C)** : ${
+          hive.telemetry.temperature < 32 
+            ? "⚠️ Température basse pour le couvain (inférieure à 32°C). Les abeilles se resserrent probablement en grappe serrée. Surveillez la présence d'un éventuel refroidissement." 
+            : hive.telemetry.temperature > 36.5 
+            ? "⚠️ Température très élevée ! Risque d'essaimage imminent ou de stress thermique. Assurez-vous que l'aération de l'entrée est totale." 
+            : "✅ Température parfaite (proche des 34.5°C de consigne). Le couvain est idéalement chauffé."
+        }
+2. **Humidité (${hive.telemetry.humidity}%)** : ${
+          hive.telemetry.humidity > 68 
+            ? "⚠️ Humidité élevée. Risque de condensation interne favorisant la prolifération de varroas et de maladies fongiques." 
+            : hive.telemetry.humidity < 45 
+            ? "⚠️ Air intérieur légèrement sec pour les larves ouvertes." 
+            : "✅ Taux d'humidité équilibré de 50-60%, idéal pour les ouvrières."
+        }
+3. **Poids global de la ruche (${hive.telemetry.weight} kg)** : ${
+          hive.telemetry.weight > 35 
+            ? "🍯 Poids excellent ! La miellée bat son plein et les hausses se remplissent magnifiquement." 
+            : "📊 Niveau de réserves standard. Suivi régulier conseillé."
+        }
+4. **Activité acoustique (${hive.telemetry.soundLevel} dB)** : ${
+          hive.telemetry.soundLevel > 70 
+            ? "⚠️ Fréquence vibratoire anormalement haute. Bourdonnement typique de détresse de reine manquante ou de préparation à l'essaimage." 
+            : "✅ Fréquence sonore calme et régulière caractéristique d'une colonie saine."
+        }
+
+**Action recommandée immédiate** : ${
+          hive.alerts.length > 0 
+            ? `Vérifier en priorité l'alerte suivante : **${hive.alerts[0].title}** (${hive.alerts[0].message}).` 
+            : "Pas d'intervention urgente requise. Poursuivre le suivi de routine."
+        }`;
+      } else {
+        fallbackText = `### 💡 Assistant Apicole RAHIQ AI (Mode Résilience)
+
+*Note : Le quota gratuit de l'API de démonstration a été dépassé. Pour lever cette limite définitivement, vous pouvez ajouter votre clé API Gemini dans les Paramètres.*
+
+Voici quelques conseils apicoles de saison :
+• **Surveillance du nid** : Conservez une température stable autour de 34,5°C pour protéger le couvain.
+• **Humidité** : Évitez la stagnation de l'eau en penchant légèrement la ruche vers l'avant.
+• **Essaimage** : Restez vigilant si la température de la ruche monte subitement au-delà de 36°C avec un bourdonnement aigu.`;
+      }
+      return res.json({ reply: fallbackText });
+    }
+
     console.error("Gemini API call failed:", error);
     res.status(500).json({ error: "Service de diagnostic temporairement indisponible", details: error.message });
   }
